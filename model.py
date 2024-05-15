@@ -9,7 +9,7 @@ class Connector:
     """
 
 
-    def __init__(self, opcua_url, node_id):
+    def __init__(self, opcua_url : str, node_id : str = None):
         
         """
         Create Connector object with specified url and node_id.
@@ -18,7 +18,7 @@ class Connector:
         self.url = opcua_url
         self.client = Client(opcua_url)
         self.node_id = node_id
-        self.var = self.client.get_node(node_id)
+        self.var = self.client.get_node(node_id)  
 
     def connect(self) -> bool: 
         
@@ -34,21 +34,15 @@ class Connector:
             print(f"An error has occurred. Client did not connect to {self.url}")
         
         return False
+    
 
-
-    # def register_node(self, node_id : str) -> None:
-
-    #     """
-    #     Assign node ID to specific Connector.
-    #     """
-
-    #     if self.node_id is None:
-    #         self.node_id = node_id
-    #     self.var = self.client.get_node(node_id)
+    def disconnect(self) -> None:
+        self.client.disconnect()
+        print(f"Client disconnected from {self.url}.")
 
 class Model:
     
-    def __init__(self, model_id : str, output = None, count = None, coord = None, connector : Connector = None):
+    def __init__(self, model_id : str, node_id : str, connector : Connector = None):
 
         """
         Create Model with parameters:
@@ -67,54 +61,7 @@ class Model:
         """
 
         self.model_id = model_id
-        self.output = output
-        self.count = count
         self.connector = connector
-        
-    def create_string(self) -> str:
-        """
-        Make string from 'model_id', 'output' and 'count' in format [model_id]$[output1]:[count1]/[output2]:[count2]/...
-        """
-
-        try:
-            match (self.output, self.count):
-                case (None, None):
-                    print("No value defined")
-                    return None
-
-                case (None, int()):
-                    temp_str = f"{self.model_id}$:{str(self.count)}"
-
-                case (int(), None):
-                    temp_str = f"{self.model_id}${str(self.output)}"
-
-                case (list(),list()):
-                    temp_str = self.model_id + "$"
-
-                    for i in range(len(self.output)):
-                        temp_str += f"{str(self.output[i])}:{str(self.count[i])}"
-                        if i != len(self.output)-1:
-                            temp_str += "/" 
-                
-                case _:
-                    temp_str = f'{self.model_id}${str(self.output)}:{str(self.count)}'
-
-                #To be extended
-
-            return temp_str
-               
-        except Exception as e:
-            print(f'An error occured when attempting to create string: {e}')
-            return None
-
-    
-    def is_valid(self) -> bool:
-        """
-        Check if create_string() returns a valid string
-        """
-        if self.create_string() is not None:
-            return True
-        return False
     
 
     def set_value(self, message) -> None:
@@ -130,8 +77,6 @@ class Model:
         
         self.connector.var.set_attribute(ua.AttributeIds.Value, ua.DataValue(message))
 
-    def send_via_nodeid(self) -> None:
-        pass
 
 
 def test_connector():
@@ -144,6 +89,7 @@ def test_connector():
     msg = mod.create_string()
     mod.set_value(msg)
 
+    cntor.disconnect()
 
     # var = connector.client.get_node(connector.node_id)
     # var.set_attribute(ua.AttributeIds.Value, ua.DataValue('blahblah'))
@@ -172,4 +118,5 @@ if __name__ == "__main__":
 
     test_connector()
 
-
+#nodes = ['node1', 'node2', 'node3']
+#outputs = [a,b,c]
