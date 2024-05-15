@@ -35,16 +35,10 @@ class Connector:
         
         return False
 
+    def disconnect(self) -> None:
+        self.client.disconnect()
+        print(f"Client disconnected from {self.url}.")
 
-    # def register_node(self, node_id : str) -> None:
-
-    #     """
-    #     Assign node ID to specific Connector.
-    #     """
-
-    #     if self.node_id is None:
-    #         self.node_id = node_id
-    #     self.var = self.client.get_node(node_id)
 
 class Model:
     
@@ -130,8 +124,6 @@ class Model:
         
         self.connector.var.set_attribute(ua.AttributeIds.Value, ua.DataValue(message))
 
-    def send_via_nodeid(self) -> None:
-        pass
 
 
 def test_connector():
@@ -143,6 +135,8 @@ def test_connector():
     mod = Model("CC",output= 1, count=40)
     msg = mod.create_string()
     mod.set_value(msg)
+
+    cntor.disconnect()
 
 
     # var = connector.client.get_node(connector.node_id)
