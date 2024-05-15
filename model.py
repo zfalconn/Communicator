@@ -18,6 +18,7 @@ class Connector:
         self.url = opcua_url
         self.client = Client(opcua_url)
         self.node_id = node_id
+        self.var = self.client.get_node(node_id)
 
     def connect(self) -> bool: 
         
