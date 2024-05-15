@@ -9,7 +9,7 @@ class Connector:
     """
 
 
-    def __init__(self, opcua_url : str, node_id : str = None):
+    def __init__(self, opcua_url : str, node_id = None):
         
         """
         Create Connector object with specified url and node_id.
@@ -18,7 +18,25 @@ class Connector:
         self.url = opcua_url
         self.client = Client(opcua_url)
         self.node_id = node_id
-        self.var = self.client.get_node(node_id)  
+        self.register_node()
+
+    def register_node(self) -> None:
+        match self.node_id:
+            case list():
+                self.var = [self.client.get_node(self.node_id[i]) for i in range(len(self.node_id))]
+                print(self.var)
+                for i in range(len(self.var)):
+                    print(self.var[i])
+                print("case list()")
+            case str():
+                self.var = self.client.get_node(self.node_id)
+                print("case str()")
+                print(self.var)
+            case _:
+                self.var = None
+                print("No node(s) assigned.")
+
+                
 
     def connect(self) -> bool: 
         
@@ -32,64 +50,64 @@ class Connector:
             return True
         except:
             print(f"An error has occurred. Client did not connect to {self.url}")
+            return False
         
-        return False
+        
     
 
     def disconnect(self) -> None:
-        self.client.disconnect()
-        print(f"Client disconnected from {self.url}.")
-
+        try:    
+            self.client.disconnect()
+            print(f"Client disconnected from {self.url}.")
+        except:
+            print(f"An error has occurred. Client did not disconnect from {self.url}")
 class Model:
     
-    def __init__(self, model_id : str, node_id : str, connector : Connector = None):
-
-        """
-        Create Model with parameters:
-
-        model_id: str
-            Name of model
-        
-        output: int or list
-            Number of output classes
-
-        count: int or list
-            Count of output class (Ex: cell counts, etc.)
-
-        connector: Connector
-            Connect Model to OPCUA server / specific node_ID
-        """
+    def __init__(self, model_id : str, connector : Connector = None):
 
         self.model_id = model_id
         self.connector = connector
     
-
-    def set_value(self, message) -> None:
+    def send(self, message) -> None:
         """
         Change value of node_ID with the value of 'message'
         """
-
-
         if self.connector is None:
             print("Please connect to client to server.")
             return
 
         
-        self.connector.var.set_attribute(ua.AttributeIds.Value, ua.DataValue(message))
+        #self.connector.var.set_attribute(ua.AttributeIds.Value, ua.DataValue(message))
+        print(message)
 
+class Classification(Model):
+    def __init__(self, model_id: str, node_id: str, connector: Connector, algorithm_output_classification : int ):
+        super().__init__(model_id, node_id, connector)
+        self.output = algorithm_output_classification
+    
+class Count(Model):
+    def __init__(self, model_id: str, node_id: str, connector: Connector, algorithm_output_count = None ):
+        super().__init__(model_id, node_id, connector)
+        self.output = algorithm_output_count
+
+    
 
 
 def test_connector():
-    cntor = Connector("opc.tcp://localhost:4840",'ns=2;i=2')
-    cntor.connect()
+    try:  
+         
+        cntor = Connector("opc.tcp://localhost:4840",node_id=['ns=2;i=2','ns=2;i=3'])
+        #cntor = Connector("opc.tcp://localhost:4840",node_id='ns=2;i=2')
+        if cntor.connect(): 
+            mod = Model("CC", cntor)
+            msg = "abcdxyz"
+            mod.send(msg)
 
-    #cntor.register_node('ns=2;i=2')
 
-    mod = Model("CC",output= 1, count=40)
-    msg = mod.create_string()
-    mod.set_value(msg)
-
-    cntor.disconnect()
+            
+            
+    finally:
+        cntor.disconnect()
 
     # var = connector.client.get_node(connector.node_id)
     # var.set_attribute(ua.AttributeIds.Value, ua.DataValue('blahblah'))
@@ -115,8 +133,9 @@ if __name__ == "__main__":
     # print(mod5.is_valid())
     # print(mod6.create_string())
     ##########################################
-
-    test_connector()
-
+    try:
+        test_connector()
+    except KeyboardInterrupt:
+        pass
 #nodes = ['node1', 'node2', 'node3']
 #outputs = [a,b,c]
