@@ -1,4 +1,4 @@
-from opcua import Client, ua
+from opcua import Client, Node, ua
 from queue import Queue
 
 class Connector: 
@@ -18,23 +18,24 @@ class Connector:
         self.url = opcua_url
         self.client = Client(opcua_url)
         self.node_id = node_id
-        self.register_node()
+        self.var = self.register_node()
 
-    def register_node(self) -> None:
+    def register_node(self) -> Node:
         match self.node_id:
             case list():
-                self.var = [self.client.get_node(self.node_id[i]) for i in range(len(self.node_id))]
-                print(self.var)
-                for i in range(len(self.var)):
-                    print(self.var[i])
-                print("case list()")
+                return [self.client.get_node(self.node_id[i]) for i in range(len(self.node_id))]
+                # print(self.var)
+                # for i in range(len(self.var)):
+                #     print(self.var[i])
+                # print("case list()")
             case str():
-                self.var = self.client.get_node(self.node_id)
-                print("case str()")
-                print(self.var)
+                return self.client.get_node(self.node_id)
+                # print("case str()")
+                # print(self.var)
             case _:
-                self.var = None
+                
                 print("No node(s) assigned.")
+                return None
 
                 
 
@@ -96,12 +97,23 @@ class Count(Model):
 def test_connector():
     try:  
          
-        cntor = Connector("opc.tcp://localhost:4840",node_id=['ns=2;i=2','ns=2;i=3'])
-        #cntor = Connector("opc.tcp://localhost:4840",node_id='ns=2;i=2')
+        #Send to multiple node ID 
+        cntor = Connector("opc.tcp://localhost:4840",node_id=['ns=2;i=3','ns=2;i=4'])
+        
+        #Send to single node ID
+        #cntor = Connector(opcua_url="opc.tcp://localhost:4840",node_id='ns=2;i=3')
         if cntor.connect(): 
             mod = Model("CC", cntor)
-            msg = "abcdxyz"
+            msg = "new message"
             mod.send(msg)
+
+            #Send to multiple node ID 
+            cntor.var[0].set_attribute(ua.AttributeIds.Value, ua.DataValue(msg)) 
+            cntor.var[1].set_attribute(ua.AttributeIds.Value, ua.DataValue(msg))
+
+            #Send to single node ID
+            # cntor.var.set_attribute(ua.AttributeIds.Value, ua.DataValue(msg))
+            
 
 
             
