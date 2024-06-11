@@ -3,9 +3,15 @@ sys.path.insert(0, "..")
 import time
 
 
-from opcua import ua, Server
+from opcua import ua, Server, Node
 
-
+class Object:
+    def __init__(self, idx, server, node_name, var_name, value):
+        self.objects = server.get_objects_node()
+        self.obj = self.objects.add_object(idx, node_name)
+        self.var = self.obj.add_variable(idx, var_name, value)
+        self.var.set_writable()
+    
 if __name__ == "__main__":
 
     # setup our server
@@ -21,13 +27,10 @@ if __name__ == "__main__":
         objects = server.get_objects_node()
 
         # populating our address space
-        myobj = objects.add_object(idx, "MyObject")
-        myobj2 = objects.add_object(idx, "MyObject2")
-        myvar = myobj.add_variable(idx, "MyVariable", "abcxyz")
-        myvar.set_writable()    # Set MyVariable to be writable by clientsffs
-        myvar2 = myobj2.add_variable(idx, "MyVariable2", "12345")
-        myvar2.set_writable()    # Set MyVariable to be writable by clients
-
+        myobj1=Object(idx, server, "MyObject1", "MyVariable1","abcxyz")
+        myobj2=Object(idx, server, "MyObject2", "MyVariable2","56789")
+        myobj3=Object(idx, server, "MyObject3", "MyVariable3","fafdafaafdda")
+        myobj4=Object(idx, server, "MyObject4", "MyVariable4","hello world")   
         # starting!
         server.start()
     except KeyboardInterrupt:
