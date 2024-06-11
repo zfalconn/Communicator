@@ -1,169 +1,206 @@
-from opcua import Client, ua
-from queue import Queue
+from typing import Any, Awaitable
+from asyncua import Client, Node
+import asyncio
+
+"""
+To run async function, use await in front of this function.
+"""
 
 class Connector: 
 
     """
-    Assign OPCUA server to a separate object, which can be dealt with independent of the actual Model 
+    Assign OPCUA server to a separate object, which can be dealt with independent of the actual Model. 
 
     """
 
-
-    def __init__(self, opcua_url, node_id):
-        
+    def __init__(self, opcua_url : str, node_id = None):
         """
-        Create Connector object with specified url and node_id.
+        Create Connector object with specified url and node_id(s).
+
+        Parameters:
+            opcua_url(str) : OPCUA server url
+            node_ids(list or str) : List of node_ids to be monitored
         """
         
         self.url = opcua_url
         self.client = Client(opcua_url)
         self.node_id = node_id
-        self.var = self.client.get_node(node_id)
+        self.var = self.register_node()
 
-    def connect(self) -> bool: 
+    def register_node(self):
+        """
+        Create Node object(s) from defined node_id(s). 
+        """
+
+        match self.node_id:
+            case list():
+                return [self.client.get_node(self.node_id[i]) for i in range(len(self.node_id))] #List of Nodes
+            case str():
+                return self.client.get_node(self.node_id)   #Single Node
+            case _:          
+                print("No node(s) assigned.")
+                return None
+   
+
+    async def connect(self) -> bool: 
         
         """
         Connect Client to OPCUA Server specified by 'opcua_url'.
         """
        
         try:
-            self.client.connect()
-            print(f"Client connected to {self.url}.")
+            await self.client.connect()
+            print(f"Client connected to {self.url}.")    
             return True
-        except:
-            print(f"An error has occurred. Client did not connect to {self.url}")
+        except Exception as e:
+            print(f"An error has occurred: {e}")
+            return False
+
+
+    async def disconnect(self) -> bool:
+        """
+        Disconnect Client from OPCUA Server.
+        """
+
+        try:    
+            await self.client.disconnect()
+            print(f"Client disconnected from {self.url}.")
+            return True  
+        except Exception as e:
+            print(f"An error has occurred: {e}")
+            return False
+    
+    def select_node(self, index : int = 0) -> Node:
+        """
+        Select specific Node using list indexing. Return same Node if only one Node is defined.
+
+        Parameters:
+            index(int) : index of list of node_ids list
         
-        return False
+        Return:
+            self.var(Node) : Node object
+        """
 
-    def disconnect(self) -> None:
-        self.client.disconnect()
-        print(f"Client disconnected from {self.url}.")
+        match self.var:
+            case list():
+                #print(f"Selecting node {self.var[index]}.")
+                return self.var[index]
+            case _:
+                #print(f"Selecting node {self.var}.")
+                return self.var 
 
+    async def read_value(self, index : int = 0):
+        """
+        Return value of at node_id.
+        """
+        print(await self.select_node(index).read_value())
+        return await self.select_node(index).read_value()
+
+    def pubsub(self):
+        raise NotImplementedError
 
 class Model:
+    """
+    Model object use Connector object to access Nodes. Different Model can have different Connector.
+    """
     
-    def __init__(self, model_id : str, output = None, count = None, coord = None, connector : Connector = None):
-
+    def __init__(self, model_id : str, connector : Connector = None):
         """
-        Create Model with parameters:
+        Create Model object.
 
-        model_id: str
-            Name of model
+        Parameters:
+            model_id(str) : model name
+            connector(Connector) : Connector object
+        """
         
-        output: int or list
-            Number of output classes
-
-        count: int or list
-            Count of output class (Ex: cell counts, etc.)
-
-        connector: Connector
-            Connect Model to OPCUA server / specific node_ID
-        """
-
         self.model_id = model_id
-        self.output = output
-        self.count = count
         self.connector = connector
-        
-    def create_string(self) -> str:
-        """
-        Make string from 'model_id', 'output' and 'count' in format [model_id]$[output1]:[count1]/[output2]:[count2]/...
-        """
-
-        try:
-            match (self.output, self.count):
-                case (None, None):
-                    print("No value defined")
-                    return None
-
-                case (None, int()):
-                    temp_str = f"{self.model_id}$:{str(self.count)}"
-
-                case (int(), None):
-                    temp_str = f"{self.model_id}${str(self.output)}"
-
-                case (list(),list()):
-                    temp_str = self.model_id + "$"
-
-                    for i in range(len(self.output)):
-                        temp_str += f"{str(self.output[i])}:{str(self.count[i])}"
-                        if i != len(self.output)-1:
-                            temp_str += "/" 
-                
-                case _:
-                    temp_str = f'{self.model_id}${str(self.output)}:{str(self.count)}'
-
-                #To be extended
-
-            return temp_str
-               
-        except Exception as e:
-            print(f'An error occured when attempting to create string: {e}')
-            return None
-
-    
-    def is_valid(self) -> bool:
-        """
-        Check if create_string() returns a valid string
-        """
-        if self.create_string() is not None:
-            return True
-        return False
-    
-
-    def set_value(self, message) -> None:
-        """
-        Change value of node_ID with the value of 'message'
-        """
-
-
         if self.connector is None:
-            print("Please connect to client to server.")
+            print("Please connect to Client to Server.")
+    
+    def select_node(self, index : int = 0) -> Node:
+        """
+        Wrap select_node function of Connector class.
+        """
+
+        return self.connector.select_node(index)
+
+    async def send(self, message, index = None) -> None:
+        """
+        Change value of node_ID with the value of 'message'.
+        Multiple messages can be sent to multiple nodes.
+        """
+        match message:
+            case list():
+                if len(message) == len(index):
+                    await run_parallel(
+                        *[self.connector.select_node(i).write_value(message[i]) for i in index]
+                    )
+                    # for i in range(len(message)):
+                    #     await self.select_node(index[i]).write_value(message[i])
+                else:
+                    print("Length of message and node list must be the same.")
+            case _: 
+                await self.select_node(index).write_value(message)
+                # await asyncio.sleep(1)
+
+    async def send_coord(self, coord : tuple, index) -> None:
+        """
+        Send coordinate (x,y) to two nodes
+        """
+
+        if len(coord) != 2:
+            print("Coordinate must be a tuple of two values.")
             return
+        if len(index) != 2:
+            print("Node list must have two elements.")
+            return
+        await self.send(coord, index)
+        # for i in range(2):
+        #     await self.send(coord[i], index[i])
+
+    def run_inference(self) -> None: 
+        #Maybe pass computer vision / machine learning object in here (or in __init__)
+        #Image can also be passed here
+        #Return result of model
+        raise NotImplementedError
+
+#Helper function to run async sequentially
+async def run_sequential(*functions: Awaitable[Any]) -> None:
+    for function in functions:
+        await function
+
+#Helper function to run async parallely
+async def run_parallel(*functions: Awaitable[Any]) -> None:
+    await asyncio.gather(*functions)
+
+#Test function
+async def test_connector():
+    try:  
+         
+        #Send to multiple node ID 
+        
+        cntor = Connector("opc.tcp://localhost:4840",node_id=['ns=2;i=3','ns=2;i=4'])
+        #Send to single node ID
+        #cntor = Connector(opcua_url="opc.tcp://localhost:4840",node_ids='ns=2;i=3')
+        await cntor.connect()
+        mod = Model("CC", cntor)
 
         
-        self.connector.var.set_attribute(ua.AttributeIds.Value, ua.DataValue(message))
-
-
-
-def test_connector():
-    cntor = Connector("opc.tcp://localhost:4840",'ns=2;i=2')
-    cntor.connect()
-
-    #cntor.register_node('ns=2;i=2')
-
-    mod = Model("CC",output= 1, count=40)
-    msg = mod.create_string()
-    mod.set_value(msg)
-
-    cntor.disconnect()
-
-
-    # var = connector.client.get_node(connector.node_id)
-    # var.set_attribute(ua.AttributeIds.Value, ua.DataValue('blahblah'))
-
-
-
+        await run_sequential(
+                # mod.send_coord((1,2),[0,1]),
+                mod.send([0,1], [0,1]),
+                run_parallel(cntor.read_value(0), cntor.read_value(1)),
+                # mod.send_coord((3,4),[0,1]), 
+                # run_parallel(cntor.read_value(0), cntor.read_value(1)),
+            )
+        
+    finally:
+        await cntor.disconnect()
 
 
 if __name__ == "__main__":
-    #Test output
-    ##########################################
-    # mod1 = Model("CC",output=1) #only output
-    # mod2 = Model("CC",count=40) #only count
-    # mod3 = Model("CC",output=2, count=200) #both output and count
-    # mod4 = Model(1,output=1) #No model name
-    # mod5 = Model("Tip") #None, None
-    # mod6 = Model("CC",output= [0,1], count=[200,40]) #arrays of input
-
-    # print(mod1.create_string())
-    # print(mod2.create_string())
-    # print(mod3.create_string())
-    # print(mod4.create_string())
-    # print(mod5.is_valid())
-    # print(mod6.create_string())
-    ##########################################
-
-    test_connector()
-
-
+    try:
+        asyncio.run(test_connector())
+    except KeyboardInterrupt:
+        pass
