@@ -6,11 +6,14 @@ import time
 from opcua import ua, Server, Node
 
 class Object:
-    def __init__(self, idx, server, node_name, var_name, value):
-        self.objects = server.get_objects_node()
-        self.obj = self.objects.add_object(idx, node_name)
-        self.var = self.obj.add_variable(idx, var_name, value)
+    def __init__(self, idx, server : Server, node_name, var_name, value):
+        self.objects : Node = server.get_objects_node()
+        self.obj : Node     = self.objects.add_object(idx, node_name)
+        self.var : Node     = self.obj.add_variable(idx, var_name, value)
         self.var.set_writable()
+    
+    def get_node(self):
+        return self.var.nodeid
     
 if __name__ == "__main__":
 
@@ -27,11 +30,12 @@ if __name__ == "__main__":
         objects = server.get_objects_node()
 
         # populating our address space
-        myobj1=Object(idx, server, "MyObject1", "MyVariable1","abcxyz")
+        myobj1=Object(idx, server, "MyObject1", "MyVariable1",0)
         myobj2=Object(idx, server, "MyObject2", "MyVariable2","56789")
-        myobj3=Object(idx, server, "MyObject3", "MyVariable3","fafdafaafdda")
+        myobj3=Object(idx, server, "MyObject3", "MyVariable3",200)
         myobj4=Object(idx, server, "MyObject4", "MyVariable4","hello world")   
         # starting!
+        #print(myobj1.get_node())
         server.start()
     except KeyboardInterrupt:
         pass
