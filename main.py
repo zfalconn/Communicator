@@ -5,6 +5,8 @@ from asyncua import Client, Node, ua
 import json
 import numpy as np
 
+#Dimension work space in um: 250 000 um x 250 000 um
+
 async def main() -> None:
     
     output_path = "output.json"
