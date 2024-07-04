@@ -135,8 +135,12 @@ class Model:
         Return:
             DataValue Object (ua.DataValue) : converted message
         """
-        dv = ua.DataValue(ua.Variant(message, vartype))
-        return dv
+        try:
+            dv = ua.DataValue(ua.Variant(message, vartype))
+            return dv
+        except Exception as e:
+            print(f'An error occurred: {e}')
+    
     @staticmethod
     def type_is_valid(arg1 : ua.VariantType, arg2 : ua.VariantType) -> bool:
         if arg1 == arg2:
@@ -146,6 +150,10 @@ class Model:
     async def send(self, message, index : int = 0, vartype : ua.VariantType = None) -> None:
         """
         Write value of node_ID with the value of 'message'.
+        1. Get Node data type
+        2. Check if user defined type is the same
+        3. If yes, convert message to OPC UA VariantType and attempt to send
+        4. If no, raise error
 
         Parameters:
             message : value to send to Node
@@ -159,19 +167,22 @@ class Model:
         
         if Model.type_is_valid(vartype,await self.get_node_data_type(index)):
             new_message = Model.create_message_as_variant_type(message, vartype)
+            #new_message = ua.DataValue(message) #Test this also with PLC
+            
             print(new_message)
-            await self.select_node(index).write_value(new_message)
+            try:
+                await self.select_node(index).write_value(new_message)
+            except Exception as e:
+                print(f'An error occurred: {e}')
         else:
             print("Invalid data type")
-        #new_message = ua.DataValue(message) #Test this also with PLC
-        
-        #ADD CHECKER IN CASE VARTYPE RETURNS NONE
+       
         
         #await self.select_node(index).write_value(message)
         
         
 
-    async def send_multiple(self, messages : list, indices : list) -> None:
+    async def send_multiple(self, messages : list, indices : list, vartype : ua.VariantType = None) -> None:
         """
         Send multiple message at once. 
 
@@ -184,7 +195,7 @@ class Model:
         if len(messages) != len(indices):
             raise ValueError("Length of messages and indices must be same")
         
-        await run_parallel(*[self.send(messages[i], indices[i]) for i in indices])
+        await run_parallel(*[self.send(messages[i], indices[i], vartype) for i in indices])
 
     async def read_value(self, index : int = 0):
         """
@@ -207,25 +218,23 @@ async def test1():
     start_time = time.time() #start time to check function call duration
 
     try:  
-        nodes_1 = ['ns=2;i=2','ns=2;i=8'] #defining target Nodes
-        nodes_2 = ['ns=2;i=4','ns=2;i=6'] #defining other target Nodes for different Connector
+        nodes_1 = ['ns=2;i=2','ns=2;i=6'] #defining target Nodes
         cntor1 = Connector("opc.tcp://localhost:4840",node_ids=nodes_1)
-        #cntor2 = Connector("opc.tcp://localhost:4840",node_ids=['ns=2;i=6','ns=2;i=8'])
         await cntor1.connect()
+
+        #nodes_2 = ['ns=2;i=4','ns=2;i=8'] #defining other target Nodes for different Connector
+        #cntor2 = Connector("opc.tcp://localhost:4840",node_ids=['ns=2;i=6','ns=2;i=8'])
         #await cntor2.connect()
 
         mod1 = Model("CC", cntor1)
-        #await mod1.send_multiple([100,200],[0,1])
-        await mod1.send(6000,0,vartype=ua.VariantType.Int64)
+        await mod1.send_multiple([100,200],[0,1], vartype=ua.VariantType.Int16)
+        #await mod1.send("6000",0,vartype=ua.VariantType.Int64)
+       
         #print(mod1.connector.var[0])
         #print(type(await mod1.read_value(0)))
-        print(await mod1.get_node_data_type(0))
-        #mod2 = Model("TIP", cntor2)
-        # await mod1.send(41412241421, 0),
-        # await mod2.send(142142141414,0),
-        # await mod1.send(75674, 1),
-        # await mod2.send("something",1)
         
+        print(await mod1.get_node_data_type(0))
+
     finally:
         await cntor1.disconnect()
         #await cntor2.disconnect()
