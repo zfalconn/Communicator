@@ -1,5 +1,5 @@
 from typing import Any, Awaitable
-from asyncua import Client, Node
+from asyncua import Client, Node, ua
 import asyncio
 import time
 
@@ -19,8 +19,8 @@ class Connector:
         Create Connector object with specified url and node_id(s).
 
         Parameters:
-            opcua_url(str) : OPCUA server url
-            node_ids(list of str) : List of node_ids to be monitored
+            opcua_url (str) : OPCUA server url
+            node_ids (list of str) : List of node_ids to be monitored
         """
         
         self.url = opcua_url
@@ -56,37 +56,38 @@ class Connector:
     
     def register_node(self, node_ids : list):
         """
-        Create Node object(s) from defined node_id(s). 
+        Create Node object(s) from defined node_id(s).
+
+        Parameters:
+            node_ids (list) : List of node_ids to be registered
+
+        Return:
+            list of Node objects
         """
         try:
             return [self.client.get_node(node_id) for node_id in node_ids]
         except Exception as e:
             print(f'An error occurred: {e}')   
             
-    def select_node(self, index : int = 0) -> Node:
-        """
-        Select specific Node using list indexing. Return same Node if only one Node is defined.
+    # def select_node(self, index : int = 0) -> Node:
+    #     """
+    #     Select specific Node using list indexing. Return first Node if only one Node is defined.
 
-        Parameters:
-            index(int) : index of list of node_ids list
+    #     Parameters:
+    #         index (int) : index of node_ids list
         
-        Return:
-            self.var(Node) : Node object
-        """
-        return self.var[index]
+    #     Return:
+    #         self.var (Node) : Node object
+    #     """
+    #     return self.var[index]
 
-    async def read_value(self, index : int = 0):
-        """
-        Return value of at node_id.
-        """
-        return await self.select_node(index).read_value()
 
     def pubsub(self):
         raise NotImplementedError
 
 class Model:
     """
-    Model object use Connector object to access Nodes. Different Model can have different Connector.
+    Model object use Connector object to access Nodes.
     """
     
     def __init__(self, model_id : str, connector : Connector):
@@ -94,8 +95,8 @@ class Model:
         Create Model object.
 
         Parameters:
-            model_id(str) : model name
-            connector(Connector) : Connector object
+            model_id (str) : model name
+            connector (Connector) : Connector object
         """
         
         self.model_id = model_id
@@ -103,25 +104,54 @@ class Model:
     
     def select_node(self, index : int = 0) -> Node:
         """
-        Wrap select_node function of Connector class.
+        Choose specific Node via index.
+
+        Parameters:
+            index (int) : index of node_ids list 
         """
-        return self.connector.select_node(index)
+        return self.connector.var[index]
+    
+    async def get_node_data_type(self, index : int = 0):
+        return await self.select_node(index).read_data_type_as_variant_type()
+    
+    @staticmethod
+    def create_message_as_variant_type(message, vartype): 
+        dv = ua.DataValue(ua.Variant(message, vartype))
+        return dv
 
     async def send(self, message, index : int = 0) -> None:
         """
         Change value of node_ID with the value of 'message'.
-        Multiple messages can be sent to multiple nodes.
+
+        Parameters:
+            message : value to send to Node
+            index (int) : index of node_ids list
         """
-        await self.select_node(index).write_value(message)
+        vartype = await self.get_node_data_type(index)
+        new_message = Model.create_message_as_variant_type(message, vartype)
+
+        #ADD CHECKER IN CASE VARTYPE RETURNS NONE
+
+        await self.select_node(index).write_value(new_message)
 
     async def send_multiple(self, messages : list, indices : list) -> None:
         """
-        Send coordinate (x,y) to two nodes
+        Send multiple message at once. 
+
+        Parameters:
+            messages : list of message
+            indices : list of indices of defined node_ids in chosen order (ex. [3,2,1,0], [1,3,2,0], etc.)
         """
         if len(messages) != len(indices):
             raise ValueError("Length of messages and indices must be same")
         
         await run_parallel(*[self.send(messages[i], indices[i]) for i in indices])
+
+    async def read_value(self, index : int = 0):
+        """
+        Return value of at specific node_id in the list.
+        """
+        return await self.select_node(index).read_value()
 
 #Helper function to run async sequentially
 async def run_sequential(*functions: Awaitable[Any]) -> None:
@@ -134,19 +164,23 @@ async def run_parallel(*functions: Awaitable[Any]) -> None:
 
 #Test function
 async def test_connector():
-    start_time = time.time()
+    
+    start_time = time.time() #start time to check function call duration
 
     try:  
-        nodes_1 = ['ns=2;i=2','ns=2;i=8']
-        nodes_2 = ['ns=2;i=4','ns=2;i=6']
+        nodes_1 = ['ns=2;i=2','ns=2;i=8'] #defining target Nodes
+        nodes_2 = ['ns=2;i=4','ns=2;i=6'] #defining other target Nodes for different Connector
         cntor1 = Connector("opc.tcp://localhost:4840",node_ids=nodes_1)
         #cntor2 = Connector("opc.tcp://localhost:4840",node_ids=['ns=2;i=6','ns=2;i=8'])
         await cntor1.connect()
         #await cntor2.connect()
 
         mod1 = Model("CC", cntor1)
-        await mod1.send_multiple([100,200],[0,1])
-        
+        #await mod1.send_multiple([100,200],[0,1])
+        await mod1.send(ord('a'),0)
+        print(mod1.connector.var[0])
+        print(type(await mod1.read_value(0)))
+        print(await mod1.get_node_data_type(0))
         #mod2 = Model("TIP", cntor2)
         # await mod1.send(41412241421, 0),
         # await mod2.send(142142141414,0),
@@ -158,7 +192,7 @@ async def test_connector():
         #await cntor2.disconnect()
     
     end_time= time.time()
-    elapsed_time = end_time - start_time
+    elapsed_time = end_time - start_time #calculate time takes to call function
     print(f"Elapsed time: {elapsed_time} seconds")
 
 if __name__ == "__main__":
