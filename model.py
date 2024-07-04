@@ -107,32 +107,56 @@ class Model:
         Choose specific Node via index.
 
         Parameters:
-            index (int) : index of node_ids list 
+            index (int) : index of node_ids list
+        Return:
+            Node object (Node) : Node Object with respective NodeId 
         """
         return self.connector.var[index]
     
-    async def get_node_data_type(self, index : int = 0):
+    async def get_node_data_type(self, index : int = 0) -> ua.VariantType:
+        """
+        Get Node variable data type.
+
+        Parameters:
+            index (int) : index of node_ids list
+        Return:
+            Varient Type (ua.VarientType) : Node variable data type
+        """
         return await self.select_node(index).read_data_type_as_variant_type()
     
     @staticmethod
-    def create_message_as_variant_type(message, vartype): 
+    def create_message_as_variant_type(message, vartype) -> ua.DataValue: 
+        """
+        Convert message in Python data type to OPC UA varient data type.
+        
+        Parameters:
+            message : input message
+            vartype : OPC UA varient data type
+        Return:
+            DataValue Object (ua.DataValue) : converted message
+        """
         dv = ua.DataValue(ua.Variant(message, vartype))
         return dv
 
     async def send(self, message, index : int = 0) -> None:
         """
-        Change value of node_ID with the value of 'message'.
+        Write value of node_ID with the value of 'message'.
 
         Parameters:
             message : value to send to Node
             index (int) : index of node_ids list
+        Return:
+            None
         """
         vartype = await self.get_node_data_type(index)
         new_message = Model.create_message_as_variant_type(message, vartype)
-
+        #new_message = ua.DataValue(message) #Test this also with PLC
+        
         #ADD CHECKER IN CASE VARTYPE RETURNS NONE
-
+        #await self.select_node(index).write_value(message)
+        
         await self.select_node(index).write_value(new_message)
+        
 
     async def send_multiple(self, messages : list, indices : list) -> None:
         """
@@ -141,6 +165,8 @@ class Model:
         Parameters:
             messages : list of message
             indices : list of indices of defined node_ids in chosen order (ex. [3,2,1,0], [1,3,2,0], etc.)
+        Return:
+            None
         """
         if len(messages) != len(indices):
             raise ValueError("Length of messages and indices must be same")
@@ -153,17 +179,17 @@ class Model:
         """
         return await self.select_node(index).read_value()
 
-#Helper function to run async sequentially
-async def run_sequential(*functions: Awaitable[Any]) -> None:
+
+async def run_sequential(*functions: Awaitable[Any]) -> None: #Helper function to run async sequentially
     for function in functions:
         await function
 
-#Helper function to run async parallely
-async def run_parallel(*functions: Awaitable[Any]) -> None:
+
+async def run_parallel(*functions: Awaitable[Any]) -> None: #Helper function to run async parallely
     await asyncio.gather(*functions)
 
 #Test function
-async def test_connector():
+async def test1():
     
     start_time = time.time() #start time to check function call duration
 
@@ -197,6 +223,6 @@ async def test_connector():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(test_connector())
+        asyncio.run(test1())
     except KeyboardInterrupt:
         pass
