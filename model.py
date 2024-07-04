@@ -101,7 +101,7 @@ class Model:
         
         self.model_id = model_id
         self.connector = connector
-    
+
     def select_node(self, index : int = 0) -> Node:
         """
         Choose specific Node via index.
@@ -120,7 +120,7 @@ class Model:
         Parameters:
             index (int) : index of node_ids list
         Return:
-            Varient Type (ua.VarientType) : Node variable data type
+            Varient Type (ua.VariantType) : Node variable data type
         """
         return await self.select_node(index).read_data_type_as_variant_type()
     
@@ -137,25 +137,38 @@ class Model:
         """
         dv = ua.DataValue(ua.Variant(message, vartype))
         return dv
+    @staticmethod
+    def type_is_valid(arg1 : ua.VariantType, arg2 : ua.VariantType) -> bool:
+        if arg1 == arg2:
+            return True
+        return False
 
-    async def send(self, message, index : int = 0) -> None:
+    async def send(self, message, index : int = 0, vartype : ua.VariantType = None) -> None:
         """
         Write value of node_ID with the value of 'message'.
 
         Parameters:
             message : value to send to Node
             index (int) : index of node_ids list
+            vartype (ua.VariantType) : OPC UA Variant Type
         Return:
             None
         """
-        vartype = await self.get_node_data_type(index)
-        new_message = Model.create_message_as_variant_type(message, vartype)
+        if vartype is None:
+            vartype = await self.get_node_data_type(index)
+        
+        if Model.type_is_valid(vartype,await self.get_node_data_type(index)):
+            new_message = Model.create_message_as_variant_type(message, vartype)
+            print(new_message)
+            await self.select_node(index).write_value(new_message)
+        else:
+            print("Invalid data type")
         #new_message = ua.DataValue(message) #Test this also with PLC
         
         #ADD CHECKER IN CASE VARTYPE RETURNS NONE
+        
         #await self.select_node(index).write_value(message)
         
-        await self.select_node(index).write_value(new_message)
         
 
     async def send_multiple(self, messages : list, indices : list) -> None:
@@ -203,9 +216,9 @@ async def test1():
 
         mod1 = Model("CC", cntor1)
         #await mod1.send_multiple([100,200],[0,1])
-        await mod1.send(ord('a'),0)
-        print(mod1.connector.var[0])
-        print(type(await mod1.read_value(0)))
+        await mod1.send(6000,0,vartype=ua.VariantType.Int64)
+        #print(mod1.connector.var[0])
+        #print(type(await mod1.read_value(0)))
         print(await mod1.get_node_data_type(0))
         #mod2 = Model("TIP", cntor2)
         # await mod1.send(41412241421, 0),
