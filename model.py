@@ -182,27 +182,24 @@ class Model:
         """
         return await self.select_node(index).read_value()
 
-
 async def run_sequential(*functions: Awaitable[Any]) -> None: #Helper function to run async sequentially
     for function in functions:
         await function
 
-
 async def run_parallel(*functions: Awaitable[Any]) -> None: #Helper function to run async parallely
     await asyncio.gather(*functions)
 
-#Test function
 async def test1():
-    
+    """
+    Test OPC UA functionalities with simulated Server.
+    """
     start_time = time.time() #start time to check function call duration
-
+    ############################################################################
     try:  
-        #nodes_1 = ['ns=2;i=2','ns=2;i=6'] #defining target Nodes
-        nodes_ROBOT = ['ns=3;s="C-OFF_X_int"','ns=3;s="C-OFF_Y_int"','ns=3;s="CV_coordinates_ready"']
-        #node_go = ['ns=3;s="CV_coordinates_ready"']
-        PLC_ip = "opc.tcp://192.168.137.2:4840"
+        nodes_1 = ['ns=2;i=2','ns=2;i=6'] #defining target Nodes
+        localip = "opc.tcp://localhost:4840"
 
-        cntor1 = Connector(PLC_ip,node_ids=nodes_ROBOT)
+        cntor1 = Connector(localip,node_ids=nodes_1)
         await cntor1.connect()
 
         #nodes_2 = ['ns=2;i=4','ns=2;i=8'] #defining other target Nodes for different Connector
@@ -210,25 +207,50 @@ async def test1():
         #await cntor2.connect()
 
         mod1 = Model("CC", cntor1)
-        await mod1.send_multiple([2000000,0],[0,1], vartype=ua.VariantType.Int32)
-        #await mod1.send("6000",0,vartype=ua.VariantType.Int64)
-        await asyncio.sleep(1)
-        await mod1.send(True, 2, vartype= ua.VariantType.Boolean)
-
-        await asyncio.sleep(2.5)
-        await mod1.send(False, 2, vartype= ua.VariantType.Boolean)
+        await mod1.send("6000",0,vartype=ua.VariantType.Int64)
         #print(mod1.connector.var[0])
         #print(type(await mod1.read_value(0)))
-        
         #print(await mod1.get_node_data_type(0))
 
     finally:
         await cntor1.disconnect()
-        #await cntor2.disconnect()
-    
+    ############################################################################
     end_time= time.time()
     elapsed_time = end_time - start_time #calculate time takes to call function
     print(f"Elapsed time: {elapsed_time} seconds")
+
+async def test_robot():
+    """
+    Test the OPC UA communication between Python script and PLC, controlling Robot movement.
+    """
+    start_time = time.time() #start time to check function call duration
+    ############################################################################
+    try:  
+        #Initialization
+        nodes_ROBOT = ['ns=3;s="C-OFF_X_int"','ns=3;s="C-OFF_Y_int"','ns=3;s="CV_coordinates_ready"']
+        PLC_ip = "opc.tcp://192.168.137.2:4840"
+        cntor1 = Connector(PLC_ip,node_ids=nodes_ROBOT)
+        await cntor1.connect()
+        mod1 = Model("ROBOT_OPCUA_TEST", cntor1)
+
+        #Send X and Y coordinates to PLC
+        await mod1.send_multiple([2000000,0],[0,1], vartype=ua.VariantType.Int32)
+        
+        await asyncio.sleep(1) #wait 1s
+        #Send "go ahead" to PLC
+        await mod1.send(True, 2, vartype= ua.VariantType.Boolean)
+
+        await asyncio.sleep(2.5) #wait 2.5s
+        #Reset "go ahead" signal
+        await mod1.send(False, 2, vartype= ua.VariantType.Boolean)
+        #END
+    finally:
+        await cntor1.disconnect()
+    ############################################################################
+    end_time = time.time()
+    elapsed_time = end_time - start_time #calculate time takes to call function
+    print(f"Elapsed time: {elapsed_time} seconds")
+
 
 if __name__ == "__main__":
     try:
