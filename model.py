@@ -14,7 +14,7 @@ class Connector:
 
     """
 
-    def __init__(self, opcua_url : str, node_ids : list): #maybe use strictly list for node_id in order to easily check input validity?
+    def __init__(self, opcua_url : str, node_ids : list):
         """
         Create Connector object with specified url and node_id(s).
 
@@ -68,19 +68,6 @@ class Connector:
             return [self.client.get_node(node_id) for node_id in node_ids]
         except Exception as e:
             print(f'An error occurred: {e}')   
-            
-    # def select_node(self, index : int = 0) -> Node:
-    #     """
-    #     Select specific Node using list indexing. Return first Node if only one Node is defined.
-
-    #     Parameters:
-    #         index (int) : index of node_ids list
-        
-    #     Return:
-    #         self.var (Node) : Node object
-    #     """
-    #     return self.var[index]
-
 
     def pubsub(self):
         raise NotImplementedError
@@ -150,8 +137,8 @@ class Model:
     async def send(self, message, index : int = 0, vartype : ua.VariantType = None) -> None:
         """
         Write value of node_ID with the value of 'message'.
-        1. Get Node data type
-        2. Check if user defined type is the same
+        1. Get Node variable data type
+        2. Check if vartype is the same as Node 
         3. If yes, convert message to OPC UA VariantType and attempt to send
         4. If no, raise error
 
@@ -167,21 +154,13 @@ class Model:
         
         if Model.type_is_valid(vartype,await self.get_node_data_type(index)):
             new_message = Model.create_message_as_variant_type(message, vartype)
-            #new_message = ua.DataValue(message) #Test this also with PLC
-            
-            print(new_message)
             try:
                 await self.select_node(index).write_value(new_message)
             except Exception as e:
                 print(f'An error occurred: {e}')
         else:
             print("Invalid data type")
-       
         
-        #await self.select_node(index).write_value(message)
-        
-        
-
     async def send_multiple(self, messages : list, indices : list, vartype : ua.VariantType = None) -> None:
         """
         Send multiple message at once. 
@@ -218,8 +197,12 @@ async def test1():
     start_time = time.time() #start time to check function call duration
 
     try:  
-        nodes_1 = ['ns=2;i=2','ns=2;i=6'] #defining target Nodes
-        cntor1 = Connector("opc.tcp://localhost:4840",node_ids=nodes_1)
+        #nodes_1 = ['ns=2;i=2','ns=2;i=6'] #defining target Nodes
+        nodes_ROBOT = ['ns=3;s="C-OFF_X_int"','ns=3;s="C-OFF_Y_int"','ns=3;s="CV_coordinates_ready"']
+        #node_go = ['ns=3;s="CV_coordinates_ready"']
+        PLC_ip = "opc.tcp://192.168.137.2:4840"
+
+        cntor1 = Connector(PLC_ip,node_ids=nodes_ROBOT)
         await cntor1.connect()
 
         #nodes_2 = ['ns=2;i=4','ns=2;i=8'] #defining other target Nodes for different Connector
@@ -227,13 +210,17 @@ async def test1():
         #await cntor2.connect()
 
         mod1 = Model("CC", cntor1)
-        await mod1.send_multiple([100,200],[0,1], vartype=ua.VariantType.Int16)
+        await mod1.send_multiple([2000000,0],[0,1], vartype=ua.VariantType.Int32)
         #await mod1.send("6000",0,vartype=ua.VariantType.Int64)
-       
+        await asyncio.sleep(1)
+        await mod1.send(True, 2, vartype= ua.VariantType.Boolean)
+
+        await asyncio.sleep(2.5)
+        await mod1.send(False, 2, vartype= ua.VariantType.Boolean)
         #print(mod1.connector.var[0])
         #print(type(await mod1.read_value(0)))
         
-        print(await mod1.get_node_data_type(0))
+        #print(await mod1.get_node_data_type(0))
 
     finally:
         await cntor1.disconnect()
