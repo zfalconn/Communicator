@@ -69,6 +69,10 @@ class Connector:
         except Exception as e:
             print(f'An error occurred: {e}')   
 
+    def login(self, username, password) -> None:
+        self.client.set_user(username)
+        self.client.set_password(password)
+
     def pubsub(self):
         raise NotImplementedError
 
