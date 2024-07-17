@@ -2,6 +2,7 @@ from typing import Any, Awaitable
 from asyncua import Client, Node, ua
 import asyncio
 import time
+import json
 
 """
 To run async function, use await in front of this function.
@@ -69,7 +70,7 @@ class Connector:
         except Exception as e:
             print(f'An error occurred: {e}')   
 
-    def login(self, username, password) -> None:
+    def login(self, username : str, password : str) -> None:
         self.client.set_user(username)
         self.client.set_password(password)
 
@@ -255,9 +256,50 @@ async def test_robot():
     elapsed_time = end_time - start_time #calculate time takes to call function
     print(f"Elapsed time: {elapsed_time} seconds")
 
+try:
+    with open('login.json', 'r') as json_file:
+        data = json.load(json_file)
+    username = data['user']
+    password = data['password']
+except:
+    print("Error: login.json not found")
+    
+
+async def test_robot_auth():
+    """
+    Test the OPC UA communication between Python script and PLC, controlling Robot movement.
+    """
+    start_time = time.time() #start time to check function call duration
+    ############################################################################
+    try:  
+        #Initialization
+        nodes_ROBOT = ['ns=3;s="C-OFF_X_int"','ns=3;s="C-OFF_Y_int"','ns=3;s="CV_coordinates_ready"']
+        PLC_ip = "opc.tcp://192.168.137.2:4840"
+        cntor1 = Connector(PLC_ip,node_ids=nodes_ROBOT)
+        #cntor1.client.application_uri = "urn:freeopcua:client"
+        cntor1.login(username,password)
+        # cntor1.client.set_user('user')
+        # cntor1.client.set_password('ISCfraunhofer021')
+        #await cntor1.client.set_security_string("Basic256Sha256,SignAndEncrypt,AAK-OPCUA-Client-cert.pem,AAK-OPCUA-Client-key.pem")
+        
+        
+        
+        #await cntor1.connect()
+        print(await cntor1.connect())
+        mod1 = Model("ROBOT_OPCUA_TEST", cntor1)
+
+        await mod1.send_multiple([2000000,0],[0,1], vartype=ua.VariantType.Int32)
+        #END
+    finally:
+        await cntor1.disconnect()
+    ############################################################################
+    end_time = time.time()
+    elapsed_time = end_time - start_time #calculate time takes to call function
+    print(f"Elapsed time: {elapsed_time} seconds")
 
 if __name__ == "__main__":
     try:
-        asyncio.run(test1())
+        #asyncio.run(test_robot_auth())
+        print(username,password)
     except KeyboardInterrupt:
         pass
