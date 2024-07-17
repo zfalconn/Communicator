@@ -276,15 +276,8 @@ async def test_robot_auth():
         nodes_ROBOT = ['ns=3;s="C-OFF_X_int"','ns=3;s="C-OFF_Y_int"','ns=3;s="CV_coordinates_ready"']
         PLC_ip = "opc.tcp://192.168.137.2:4840"
         cntor1 = Connector(PLC_ip,node_ids=nodes_ROBOT)
-        #cntor1.client.application_uri = "urn:freeopcua:client"
         cntor1.login(username,password)
-        # cntor1.client.set_user('user')
-        # cntor1.client.set_password('ISCfraunhofer021')
-        #await cntor1.client.set_security_string("Basic256Sha256,SignAndEncrypt,AAK-OPCUA-Client-cert.pem,AAK-OPCUA-Client-key.pem")
-        
-        
-        
-        #await cntor1.connect()
+
         print(await cntor1.connect())
         mod1 = Model("ROBOT_OPCUA_TEST", cntor1)
 
